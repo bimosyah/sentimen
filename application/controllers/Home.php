@@ -11,7 +11,7 @@ class Home extends CI_Controller
 
     public function index()
     {
-        $total_dataset = $this->db->where('temp_klasifikasi !=',null)->get('dataset')->num_rows();
+        $total_dataset = $this->db->where('temp_klasifikasi !=', null)->get('dataset')->num_rows();
 
         $db_marketplace = $this->db
             ->select('marketplace.*,(select count(*) from dataset where fk_marketplace=marketplace.id and temp_klasifikasi=1) as positif,(select count(*) from dataset where fk_marketplace=marketplace.id and temp_klasifikasi=-1) negatif,(select count(*) from dataset where fk_marketplace=marketplace.id and temp_klasifikasi=0) netral')
@@ -27,7 +27,11 @@ class Home extends CI_Controller
 
         foreach ($db_marketplace as $key => $value) {
             $ranking_label[] = $value->nama;
-            $hitung_score = ($value->positif + $value->netral - $value->negatif) / $total_dataset;
+            if ($total_dataset != 0) {
+                $hitung_score = ($value->positif + $value->netral - $value->negatif) / $total_dataset;
+            } else {
+                $hitung_score = 0;
+            }
             $data_ranking[$value->id] = $hitung_score;
             $ranking_data[] = $hitung_score;
 
@@ -50,11 +54,17 @@ class Home extends CI_Controller
             'data' => $jumlah_per_marketplace,
         ];
 
-        $data['percentage_positif'] = array_sum($arr_positif) / $total_dataset;
-        $data['percentage_netral'] = array_sum($arr_netral) / $total_dataset;
-        $data['percentage_negatif'] = array_sum($arr_negatif) / $total_dataset;
+        if ($total_dataset != 0) {
+            $data['percentage_positif'] = array_sum($arr_positif) / $total_dataset;
+            $data['percentage_netral'] = array_sum($arr_netral) / $total_dataset;
+            $data['percentage_negatif'] = array_sum($arr_negatif) / $total_dataset;
+        } else {
+            $data['percentage_positif'] = 0;
+            $data['percentage_netral'] = 0;
+            $data['percentage_negatif'] = 0;
+        }
 
-        $data['dataset_data'] = $this->db->select("*,(select nama from marketplace where id=dataset.fk_marketplace) nama_marketplace")->get('dataset')->result();
+        $data['dataset_data'] = $this->db->select("*,(select nama from marketplace where id=dataset.fk_marketplace) nama_marketplace")->where('temp_klasifikasi !=',null)->get('dataset')->result();
         $this->load->view('home', $data);
     }
 }

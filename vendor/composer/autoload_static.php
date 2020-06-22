@@ -34,6 +34,7 @@ class ComposerStaticInitc6292a543f9b90923518d61c032b43b2
         array (
             'Psr\\Log\\' => 8,
             'Psr\\Container\\' => 14,
+            'Phpml\\' => 6,
         ),
         'G' => 
         array (
@@ -97,6 +98,10 @@ class ComposerStaticInitc6292a543f9b90923518d61c032b43b2
         'Psr\\Container\\' => 
         array (
             0 => __DIR__ . '/..' . '/psr/container/src',
+        ),
+        'Phpml\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/php-ai/php-ml/src',
         ),
         'Goutte\\' => 
         array (

@@ -57,7 +57,7 @@ class SVM extends CI_Controller
 
                 $data_excel = [];
                 foreach ($fetch_excel as $key => $value) {
-                    if(trim($value['0']) != "" || trim($value['1']) != ""){
+                    if (trim($value['0']) != "" || trim($value['1']) != "") {
                         $data_excel[] = [
                             'teks' => trim($value['0']),
                             'klasifikasi' => trim($value['1']),
@@ -72,23 +72,14 @@ class SVM extends CI_Controller
                     $count_entered++;
                 }
                 unlink($inputFileName);
-
-                echo json_encode([
-                    'type' => "success",
-                    'text' => "Data count : " . $count_entered,
-                    'title' => "Import Berhasil",
-                    'data' => $data_excel
-                ]);
-
                 $this->session->set_flashdata('message', "Data count : " . $count_entered);
-                redirect("SVM/testing");
             } catch (Exception $e) {
                 $is_error = true;
                 $data['error_info'] = 'Error loading file "' . pathinfo($inputFileName, PATHINFO_BASENAME) . '": ' . $e->getMessage();
 
                 $this->session->set_flashdata('message', $data['error_info']);
             }
-            
+            redirect("SVM/testing");
         }
     }
 
@@ -256,6 +247,8 @@ class SVM extends CI_Controller
             $gamma = $this->input->post('gamma');
             $max_iteration = $this->input->post('max_iteration');
 
+            $time = microtime(true);
+
             $text_list = [];
 
             $db_training = $this->db
@@ -264,6 +257,8 @@ class SVM extends CI_Controller
             $db_testing = $this->db
                 ->get('testing')
                 ->result();
+
+
 
 
             $label = [];
@@ -285,6 +280,8 @@ class SVM extends CI_Controller
                 $text_list[$key + $old_key] = $value;
                 $testing[] = $key + $old_key;
             }
+
+
 
 
 
@@ -423,6 +420,9 @@ class SVM extends CI_Controller
                 $i++;
             } while ($i < $max_iteration);
 
+            $time_getDB = (microtime(true) - $time);
+            dd($time_getDB);
+
             $max_key = array_keys($alpha, max($alpha))[0];
             $min_key = array_keys($alpha, min($alpha))[0];
 
@@ -478,9 +478,9 @@ class SVM extends CI_Controller
                 $fx[$key] = (array_sum($value)) + $bias;
 
 
-                if ($fx[$key] >= (0 + abs($bias/2))) {
+                if ($fx[$key] >= (0 + abs($bias / 2))) {
                     $fx_result[$key] = 1;
-                } else if ($fx[$key] <= (0 - abs($bias/2))) {
+                } else if ($fx[$key] <= (0 - abs($bias / 2))) {
                     $fx_result[$key] = -1;
                 } else {
                     $fx_result[$key] = 0;
@@ -578,5 +578,222 @@ class SVM extends CI_Controller
 
             $this->load->view('admin/svm/result', $data);
         }
+    }
+
+    public function calculate_svm_lib()
+    {
+        $limit = 200;
+
+        $this->load->library('preprocessing');
+        $this->load->library("svmlib");
+
+        $db_training = $this->db
+            ->get('training')
+            ->result();
+        $db_testing = $this->db
+            ->where('svm_klasifikasi', null)
+            ->get('testing', $limit)
+            ->result();
+
+        if (count($db_testing) == 0) {
+            echo json_encode([
+                'has_next' => false,
+            ]);
+            return;
+        }
+
+        $label = [];
+        $training = [];
+        $testing = [];
+
+        $list_of_document = [];
+        foreach ($db_training as $key => $value) {
+            $list_of_document[$key] = $this->preprocessing->process($value->teks, $stopword = false);
+            $text_list[$key] = $value;
+            $label[$key] = $value->klasifikasi;
+            $training[] = $key;
+        }
+
+        $old_key = $key + 1;
+
+        foreach ($db_testing as $key => $value) {
+            $list_of_document[$key + $old_key] = $this->preprocessing->process($value->teks, $stopword = false);
+            $text_list[$key + $old_key] = $value;
+            $testing[] = $key + $old_key;
+        }
+
+
+        ###end of me
+        $all_text = [];
+        foreach ($list_of_document as $key => $value) {
+            $all_text = array_merge($all_text, $value);
+        }
+
+        $all_text =  array_unique($all_text);
+        $all_text = array_values($all_text);
+
+        #tfidf
+        $matrix_tf = [];
+        foreach ($all_text as $key_word => $word) {
+
+            foreach ($list_of_document as $key_text => $value_text) {
+                $count_word = 0;
+                foreach ($value_text as $k => $v) {
+                    if ($word == $v) {
+                        $count_word++;
+                    }
+                }
+                $matrix_tf[$key_word][$key_text] = $count_word;
+            }
+        }
+
+
+
+        $text_df = [];
+        foreach ($matrix_tf as $key => $value) {
+            $df = 0;
+            foreach ($value as $k => $v) {
+                if ($v > 0) {
+                    $df++;
+                }
+            }
+            $text_df[$key] = $df;
+        }
+
+        $text_dperdf = [];
+        $text_idf = [];
+        $text_idfplus1 = [];
+        $word_count = count($list_of_document);
+        foreach ($text_df as $key => $value) {
+            $dperdf = $word_count / $value;
+            $text_dperdf[$key] = $dperdf;
+            $idf = log10($dperdf);
+            $text_idf[$key] = $idf;
+            $text_idfplus1[$key] = $idf + 1;
+        }
+
+        $matrix_tfidf = [];
+        foreach ($matrix_tf as $key => $value) {
+            foreach ($value as $k => $v) {
+                $matrix_tfidf[$key][$k] = $v * $text_idfplus1[$key];
+            }
+        }
+
+        $matrix_tfidf_t = [];
+        foreach ($matrix_tfidf as $key => $value) {
+            foreach ($value as $k => $v) {
+                $matrix_tfidf_t[$k][$key] = $v;
+            }
+        }
+
+        $new_training = [];
+        $new_label = [];
+        $new_testing = [];
+
+        $testing_data = [];
+
+        foreach ($matrix_tfidf_t as $key => $value) {
+            if (isset($label[$key])) {
+                $new_training[] = $value;
+                $new_label[] = $label[$key];
+            } else {
+                $new_testing[] = $value;
+                $testing_data[] = $text_list[$key];
+            }
+        }
+
+        $return = $this->svmlib->process($new_training, $new_label, $new_testing);
+
+
+        foreach ($return as $key => $value) {
+            $testing_data[$key]->predict = $value;
+
+            $this->db->where('id', $testing_data[$key]->id)->update('testing', ['svm_klasifikasi' => $value]);
+        }
+        echo json_encode([
+            'has_next' => true,
+            'complete' => count($return),
+            'total' => $this->db->get('testing')->num_rows(),
+        ]);
+        return;
+    }
+
+    public function result_library()
+    {
+        $tp = 0;
+        $fp = 0;
+        $tn = 0;
+        $fn = 0;
+        $tneg = 0;
+        $fneg = 0;
+
+        $db_testing = $this->db->where('svm_klasifikasi !=', null)->get('testing')->result();
+
+        foreach ($db_testing as $key => $value) {
+            if ($value->klasifikasi == $value->svm_klasifikasi) {
+                if ($value->klasifikasi == 1) {
+                    $tp++;
+                }
+                if ($value->klasifikasi == 0) {
+                    $tneg++;
+                }
+                if ($value->klasifikasi == -1) {
+                    $tn++;
+                }
+            } else {
+                if ($value->klasifikasi == 1) {
+                    $fp++;
+                }
+                if ($value->klasifikasi == 0) {
+                    $fneg++;
+                }
+                if ($value->klasifikasi == -1) {
+                    $fn++;
+                }
+            }
+        }
+
+        if (($tp + $fp + $fn + $tn) != 0) {
+            $akurasi = ($tp + $tn) / ($tp + $tn + $fp + $fn);
+        } else {
+            $akurasi = 0;
+        }
+
+        if (($tn + $fp) != 0) {
+            $presisi = $tp / ($tp + $fp);
+        } else {
+            $presisi = 0;
+        }
+
+        if (($tp + $fn) != 0) {
+            $recall = $tp / ($tp + $fn);
+        } else {
+            $recall = 0;
+        }
+
+        if (($presisi + $recall) != 0) {
+            $fmeasure = 2 * ($presisi * $recall) / ($presisi + $recall);
+        } else {
+            $fmeasure = 0;
+        }
+
+
+        $data['presisi'] = number_format($presisi * 100, 0) . "%";
+        $data['recall'] = number_format($recall * 100, 0) . "%";
+        $data['akurasi'] = number_format($akurasi * 100, 0) . "%";
+        $data['fmeasure'] = number_format($fmeasure * 100, 0) . "%";
+
+        $data['result'] = $db_testing;
+
+        $data['count_training'] = $this->db->get('training')->num_rows();
+        $data['count_testing'] = $this->db->get('testing')->num_rows();
+        $data['count_testing_null'] = $this->db->where('svm_klasifikasi !=', null)->get('testing')->num_rows();
+
+        $this->load->view('admin/svm/result_library', $data);
+    }
+
+    public function clean_svm_klasifikasi()
+    {
+        $this->db->update('testing', ['svm_klasifikasi' => null]);
     }
 }

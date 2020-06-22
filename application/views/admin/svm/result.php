@@ -50,7 +50,7 @@
     <div class="col-md-12">
         <div class="card">
             <div class="card-body">
-                <?php echo form_open(""); ?>
+                <?php echo form_open("SVM/result_action"); ?>
                 <div class="form-group row">
                     <label for="" class="col-form-label col-md-2">pi</label>
                     <div class="col-md-10">

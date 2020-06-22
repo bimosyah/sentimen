@@ -7,10 +7,10 @@ class Labeling extends CI_Controller
     {
         parent::__construct();
         user_allow([]);
-        
+
         ini_set('max_execution_time', -1);
         set_time_limit(-1);
-        ini_set('memory_limit', '-1');
+        ini_set('memory_limit', '20000M');
     }
 
     public function index()
@@ -18,7 +18,7 @@ class Labeling extends CI_Controller
         ini_set('max_execution_time', -1);
         set_time_limit(-1);
         ini_set('memory_limit', '-1');
-        
+
         $this->load->library('form_validation');
         $this->form_validation->set_rules('pi', "Pi", "required");
         $data = [];
@@ -267,9 +267,9 @@ class Labeling extends CI_Controller
                 $fx[$key] = (array_sum($value)) + $bias;
 
 
-                if ($fx[$key] >= ($bias+abs($bias))) {
+                if ($fx[$key] >= ($bias + abs($bias))) {
                     $fx_result[$key] = 1;
-                } else if ($fx[$key] <= ($bias-abs($bias))) {
+                } else if ($fx[$key] <= ($bias - abs($bias))) {
                     $fx_result[$key] = -1;
                 } else {
                     $fx_result[$key] = 0;
@@ -293,11 +293,11 @@ class Labeling extends CI_Controller
                 }
             }
 
-            foreach($result as $key => $value){
+            foreach ($result as $key => $value) {
                 $set = [
                     'temp_klasifikasi' => $value->predict,
                 ];
-                $this->db->where('id',$value->id)->update('dataset',$set);
+                $this->db->where('id', $value->id)->update('dataset', $set);
             }
 
             $data['result'] = $result;
@@ -310,7 +310,164 @@ class Labeling extends CI_Controller
             $data['count_dataset'] = $this->db->get('dataset')->num_rows();
 
             $this->load->view('admin/labeling/index', $data);
-            
         }
+    }
+
+    public function labeling_library()
+    {
+        $db_testing = $this->db->where('temp_klasifikasi !=', null)->get('dataset')->result();
+        $data['result'] = $db_testing;
+
+        $data['count_training'] = $this->db->get('training')->num_rows();
+        $data['count_dataset'] = $this->db->get('dataset')->num_rows();
+        $data['count_dataset_null'] = $this->db->where('temp_klasifikasi !=', null)->get('dataset')->num_rows();
+
+        $this->load->view('admin/labeling/labeling_library', $data);
+    }
+
+    public function calculate_svm_lib()
+    {
+        $limit = 100;
+
+        $this->load->library('preprocessing');
+        $this->load->library("svmlib");
+
+        $db_training = $this->db
+            ->get('training')
+            ->result();
+        $db_testing = $this->db
+            ->where('temp_klasifikasi',null)
+            ->get('dataset', $limit)
+            ->result();
+
+
+        if (count($db_testing) == 0) {
+            echo json_encode([
+                'has_next' => false,
+            ]);
+            return;
+        }
+
+
+        $label = [];
+        $training = [];
+        $testing = [];
+
+        $list_of_document = [];
+        foreach ($db_training as $key => $value) {
+            $list_of_document[$key] = $this->preprocessing->process($value->teks, $stopword = false);
+            $text_list[$key] = $value;
+            $label[$key] = $value->klasifikasi;
+            $training[] = $key;
+        }
+
+        $old_key = $key + 1;
+
+        foreach ($db_testing as $key => $value) {
+            $list_of_document[$key + $old_key] = $this->preprocessing->process($value->teks, $stopword = false);
+            $text_list[$key + $old_key] = $value;
+            $testing[] = $key + $old_key;
+        }
+
+
+        ###end of me
+        $all_text = [];
+        foreach ($list_of_document as $key => $value) {
+            $all_text = array_merge($all_text, $value);
+        }
+
+        $all_text =  array_unique($all_text);
+        $all_text = array_values($all_text);
+
+        #tfidf
+        $matrix_tf = [];
+        foreach ($all_text as $key_word => $word) {
+
+            foreach ($list_of_document as $key_text => $value_text) {
+                $count_word = 0;
+                foreach ($value_text as $k => $v) {
+                    if ($word == $v) {
+                        $count_word++;
+                    }
+                }
+                $matrix_tf[$key_word][$key_text] = $count_word;
+            }
+        }
+
+
+
+        $text_df = [];
+        foreach ($matrix_tf as $key => $value) {
+            $df = 0;
+            foreach ($value as $k => $v) {
+                if ($v > 0) {
+                    $df++;
+                }
+            }
+            $text_df[$key] = $df;
+        }
+
+        $text_dperdf = [];
+        $text_idf = [];
+        $text_idfplus1 = [];
+        $word_count = count($list_of_document);
+        foreach ($text_df as $key => $value) {
+            $dperdf = $word_count / $value;
+            $text_dperdf[$key] = $dperdf;
+            $idf = log10($dperdf);
+            $text_idf[$key] = $idf;
+            $text_idfplus1[$key] = $idf + 1;
+        }
+
+        $matrix_tfidf = [];
+        foreach ($matrix_tf as $key => $value) {
+            foreach ($value as $k => $v) {
+                $matrix_tfidf[$key][$k] = $v * $text_idfplus1[$key];
+            }
+        }
+
+        $matrix_tfidf_t = [];
+        foreach ($matrix_tfidf as $key => $value) {
+            foreach ($value as $k => $v) {
+                $matrix_tfidf_t[$k][$key] = $v;
+            }
+        }
+
+        $new_training = [];
+        $new_label = [];
+        $new_testing = [];
+
+        $testing_data = [];
+
+        foreach ($matrix_tfidf_t as $key => $value) {
+            if (isset($label[$key])) {
+                $new_training[] = $value;
+                $new_label[] = $label[$key];
+            } else {
+                $new_testing[] = $value;
+                $testing_data[] = $text_list[$key];
+            }
+        }
+
+        $return = $this->svmlib->process($new_training, $new_label, $new_testing);
+
+
+        foreach ($return as $key => $value) {
+            $testing_data[$key]->predict = $value;
+
+            $this->db->where('id', $testing_data[$key]->id)->update('dataset', ['temp_klasifikasi' => $value]);
+        }
+        echo json_encode([
+            'has_next' => true,
+            'complete' => count($return),
+            'total' => $this->db->get('dataset')->num_rows(),
+        ]);
+        return;
+    }
+
+    public function clean_svm_klasifikasi()
+    {
+        $this->db->update('dataset', ['temp_klasifikasi' => null]);
+        redirect("Labeling/labeling_library");
     }
 }

@@ -12,7 +12,8 @@ class Dashboard extends CI_Controller
 
     public function index()
     {
-        $total_dataset = $this->db->get('dataset')->num_rows();
+
+        $total_dataset = $this->db->where('temp_klasifikasi !=', null)->get('dataset')->num_rows();
 
         $db_marketplace = $this->db
             ->select('marketplace.*,(select count(*) from dataset where fk_marketplace=marketplace.id and temp_klasifikasi=1) as positif,(select count(*) from dataset where fk_marketplace=marketplace.id and temp_klasifikasi=-1) negatif,(select count(*) from dataset where fk_marketplace=marketplace.id and temp_klasifikasi=0) netral')
@@ -23,7 +24,13 @@ class Dashboard extends CI_Controller
         $data_ranking = [];
         foreach ($db_marketplace as $key => $value) {
             $ranking_label[] = $value->nama;
-            $hitung_score = ($value->positif + $value->netral - $value->negatif) / $total_dataset;
+            if ($total_dataset != 0) {
+
+                $hitung_score = ($value->positif + $value->netral - $value->negatif) / $total_dataset;
+            } else {
+
+                $hitung_score = 0;
+            }
             $data_ranking[$value->id] = $hitung_score;
             $ranking_data[] = $hitung_score;
 

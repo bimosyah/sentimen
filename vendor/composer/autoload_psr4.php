@@ -20,5 +20,6 @@ return array(
     'Symfony\\Component\\BrowserKit\\' => array($vendorDir . '/symfony/browser-kit'),
     'Psr\\Log\\' => array($vendorDir . '/psr/log/Psr/Log'),
     'Psr\\Container\\' => array($vendorDir . '/psr/container/src'),
+    'Phpml\\' => array($vendorDir . '/php-ai/php-ml/src'),
     'Goutte\\' => array($vendorDir . '/fabpot/goutte/Goutte'),
 );

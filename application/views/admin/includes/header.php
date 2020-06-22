@@ -72,7 +72,7 @@
                     <li class="menu-item-has-children dropdown">
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"> <i class="menu-icon fa fa-laptop"></i>Scraping</a>
                         <ul class="sub-menu children dropdown-menu">
-                            <li><i class="fa fa-twitter"></i><a href="<?php echo base_url('Scraping/twitter') ?>">Twitter</a></li>
+                            <!-- <li><i class="fa fa-twitter"></i><a href="<?php echo base_url('Scraping/twitter') ?>">Twitter</a></li> -->
                             <li><i class="fa fa-twitter"></i><a href="<?php echo base_url('Scraping/twitter_import') ?>">Twitter Import</a></li>
                             <li><i class="fa fa-laptop"></i><a href="<?php echo base_url('Scraping/website/') ?>">Website</a></li>
                             <li><i class="fa fa-play"></i><a href="<?php echo base_url('Scraping/playstore/') ?>">Playstore</a></li>
@@ -91,15 +91,18 @@
                             <li><a href="<?php echo base_url('SVM/testing/') ?>">Data Testing</a></li>
                             <li><a href="<?php echo base_url('SVM/preprocessing/') ?>">Preprocessing</a></li>
                             <li><a href="<?php echo base_url('SVM/tfidf/') ?>">TF-IDF</a></li>
-                            <li><a href="<?php echo base_url('SVM/result/') ?>">Result</a></li>
+                            <li><a href="<?php echo base_url('SVM/result/') ?>">Result Native</a></li>
+                            <li><a href="<?php echo base_url('SVM/result_library/') ?>">Result Library</a></li>
                         </ul>
                     </li>
 
-
-                    <li class="">
-                        <a href="<?php echo base_url('Labeling/') ?>"> <i class="menu-icon fa fa-check-square"></i>Labeling </a>
+                    <li class="menu-item-has-children dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"> <i class="menu-icon fa fa-laptop"></i>Labeling</a>
+                        <ul class="sub-menu children dropdown-menu">
+                            <li><a href="<?php echo base_url('Labeling/') ?>">Native</a></li>
+                            <li><a href="<?php echo base_url('Labeling/labeling_library') ?>">Library</a></li>
+                        </ul>
                     </li>
-
 
                 </ul>
             </div><!-- /.navbar-collapse -->
